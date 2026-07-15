@@ -1,0 +1,63 @@
+name: Monitor .NET SDK Releases
+
+on:
+  schedule:
+    # Check for new .NET releases daily at 06:00 UTC
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  check-release:
+    runs-on: ubuntu-latest
+    outputs:
+      new-release: ${{ steps.check.outputs.new-release }}
+      dotnet-version: ${{ steps.check.outputs.dotnet-version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for new .NET SDK release
+        id: check
+        run: |
+          # Get latest stable release tags for .NET 10 and 8
+          LATEST_10=$(curl -s https://api.github.com/repos/dotnet/core/releases | jq -r '[.[] | select(.tag_name | startswith("v10.0")) | select(.prerelease == false)] | first | .tag_name // empty')
+          LATEST_8=$(curl -s https://api.github.com/repos/dotnet/core/releases | jq -r '[.[] | select(.tag_name | startswith("v8.0")) | select(.prerelease == false)] | first | .tag_name // empty')
+
+          echo "Latest .NET 10: $LATEST_10"
+          echo "Latest .NET 8: $LATEST_8"
+
+          # Read stored versions
+          STORED_10=$(cat .dotnet-version-10 2>/dev/null || echo "")
+          STORED_8=$(cat .dotnet-version-8 2>/dev/null || echo "")
+
+          echo "Stored .NET 10: $STORED_10"
+          echo "Stored .NET 8: $STORED_8"
+
+          # Check if any version changed
+          if [ "$LATEST_10" != "$STORED_10" ] || [ "$LATEST_8" != "$STORED_8" ]; then
+            echo "new-release=true" >> $GITHUB_OUTPUT
+            echo "dotnet-version=10.0,8.0" >> $GITHUB_OUTPUT
+
+            # Save new versions
+            echo "$LATEST_10" > .dotnet-version-10
+            echo "$LATEST_8" > .dotnet-version-8
+          else
+            echo "new-release=false" >> $GITHUB_OUTPUT
+            echo "No new .NET SDK releases found."
+          fi
+
+      - name: Commit version files
+        if: steps.check.outputs.new-release == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .dotnet-version-10 .dotnet-version-8
+          git commit -m "chore: update .NET SDK versions [skip ci]" || true
+          git push
+
+  trigger-build:
+    needs: check-release
+    if: needs.check-release.outputs.new-release == 'true'
+    uses: ./.github/workflows/docker-build.yml
+    secrets: inherit
