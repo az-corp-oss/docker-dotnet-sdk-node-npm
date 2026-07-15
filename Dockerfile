@@ -2,7 +2,7 @@ ARG TAG="latest"
 
 FROM mcr.microsoft.com/dotnet/sdk:${TAG}
 
-RUN curl -sL https://deb.nodesource.com/setup_18.x | bash - \
+RUN curl -sL https://deb.nodesource.com/setup_20.x | bash - \
  && apt-get install -y --no-install-recommends nodejs \
  && npm i -g npm pnpm rimraf \
  && echo "node version: $(node --version)" \
