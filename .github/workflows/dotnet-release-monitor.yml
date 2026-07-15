@@ -56,8 +56,14 @@ jobs:
           git commit -m "chore: update .NET SDK versions [skip ci]" || true
           git push
 
-  trigger-build:
+  trigger-build-sdk:
     needs: check-release
     if: needs.check-release.outputs.new-release == 'true'
-    uses: ./.github/workflows/docker-build.yml
+    uses: ./.github/workflows/docker-build-sdk.yml
+    secrets: inherit
+
+  trigger-build-runtime:
+    needs: check-release
+    if: needs.check-release.outputs.new-release == 'true'
+    uses: ./.github/workflows/docker-build-runtime.yml
     secrets: inherit

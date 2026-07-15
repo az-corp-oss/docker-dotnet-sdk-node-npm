@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build and Push Runtime Image
 
 on:
   push:
@@ -6,7 +6,6 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    # Rebuild every Tuesday at 00:00 UTC to pick up .NET SDK patches
     - cron: "0 0 * * 2"
   workflow_dispatch:
     inputs:
@@ -14,16 +13,21 @@ on:
         description: "Specific .NET version to build (leave empty for all)"
         required: false
         default: ""
+  workflow_call:
+    inputs:
+      dotnet-version:
+        type: string
+        required: false
 
 env:
-  DOCKERHUB_REPO: azhe403/dotnet-sdk-node
+  DOCKERHUB_REPO: azhe403/dotnet-runtime-node
 
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        dotnet-version: ${{ github.event.inputs.dotnet-version && fromJSON(format('["{0}"]', github.event.inputs.dotnet-version)) || fromJSON('["10.0", "8.0"]') }}
+        dotnet-version: ${{ inputs.dotnet-version && fromJSON(format('["{0}"]', inputs.dotnet-version)) || fromJSON('["10.0", "8.0"]') }}
 
     steps:
       - name: Checkout
@@ -49,12 +53,12 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: runtime/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           build-args: TAG=${{ matrix.dotnet-version }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  # Build default (latest) separately
   build-latest:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -73,6 +77,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: runtime/Dockerfile
           push: true
           tags: |
             ${{ env.DOCKERHUB_REPO }}:latest
